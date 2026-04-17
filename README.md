@@ -63,3 +63,32 @@ Below is a breakdown of the security test cases explicitly handled and how to ve
   1. Search the source code for literal unhashed strings.
   2. Confirm passwords like `Admin@123` do not exist.
   3. Run SonarScanner and verify it reports 0 vulnerabilities regarding compromised cryptographic literals.
+
+## Test Case 8: Two-Factor Authentication (2FA) Implementation
+* **Objective:** Add a secondary layer of authentication using Time-Based One-Time Passwords (TOTP) to protect user accounts even if passwords are compromised.
+* **Implementation:** Generates a base32 TOTP secret for each user, displays an Authenticator-compatible QR code, and manually computes the HMAC-SHA1 validation without relying on non-standard dependencies. Prevents complete login until the secondary code is validated by utilizing a `pre_2fa_user` intermediate session.
+* **Code Snippet:**
+```python
+def verify_totp(secret, token, window=1):
+    if not token or not token.isdigit():
+        return False
+    try:
+        key = base64.b32decode(secret, True)
+    except:
+        return False
+    
+    current_interval = int(time.time() / 30)
+    for i in range(-window, window + 1):
+        t = struct.pack(">Q", current_interval + i)
+        h = hmac.new(key, t, hashlib.sha1).digest()
+        o = h[19] & 15
+        val = (struct.unpack(">I", h[o:o+4])[0] & 0x7fffffff) % 1000000
+        if str(val).zfill(6) == str(token):
+            return True
+    return False
+```
+* **Verification Steps:**
+  1. Complete the initial login step with valid credentials.
+  2. The application redirects you to `/2fa` and correctly displays an Authenticator App QR Code.
+  3. Enter an invalid or expired code and confirm you get "Invalid Authenticator Code!".
+  4. Enter the matching active code and confirm you are securely advanced to the `/dashboard`.
