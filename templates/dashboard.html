@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dashboard</title>
+    <script>
+        // Set inactive session timer for 300 seconds (5 minutes)
+        let timeLeft = 300;
+        
+        // Reset timer function to be called on any user activity
+        function resetTimer() {
+            timeLeft = 300;
+            document.getElementById("timer").innerText = timeLeft;
+        }
+
+        // Listen for activity to reset the inactivity timer
+        window.onload = resetTimer;
+        document.onmousemove = resetTimer;
+        document.onkeydown = resetTimer;
+
+        // Interval to count down
+        setInterval(function() {
+            timeLeft--;
+            document.getElementById("timer").innerText = timeLeft;
+            if (timeLeft <= 0) {
+                window.location.href = "/logout?reason=timeout";
+            }
+        }, 1000);
+    </script>
+</head>
+<body>
+    <h2>Welcome {{ safe_username }}!</h2>
+    <p style="color: grey;">
+        For security purposes, you will be automatically logged out after 5 minutes of inactivity.<br>
+        Time remaining before auto-logout: <strong id="timer">300</strong> seconds.
+    </p>
+    <br>
+    <a href="/logout"><button>Logout</button></a>
+</body>
+</html>

@@ -7,7 +7,7 @@ import struct
 import hashlib
 import time
 import urllib.parse
-from flask import Flask, request, render_template_string, redirect, session, abort
+from flask import Flask, request, render_template, redirect, session, abort
 from werkzeug.security import generate_password_hash, check_password_hash
 from markupsafe import escape
 
@@ -67,6 +67,8 @@ def add_security_headers(response):
     response.headers['X-XSS-Protection'] = '1; mode=block'
     response.headers['Content-Security-Policy'] = "default-src 'self' 'unsafe-inline'; img-src 'self' https://api.qrserver.com;"  # 'unsafe-inline' added for the timer script, img-src for QR Code
     response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    response.headers['Cache-Control'] = 'no-store, max-age=0'
+    response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
     return response
 
 # -------- HELPER FUNCTIONS --------
@@ -258,7 +260,7 @@ def login_form():
     if request.args.get("reason") == "timeout":
         error_msg = "Your session expired due to inactivity."
 
-    return render_template_string(LOGIN_TEMPLATE, error=error_msg)
+    return render_template("login.html", error=error_msg)
 
 @app.post("/")
 def login_post():
@@ -270,11 +272,11 @@ def login_post():
 
     # Input Validation
     if not is_valid_input(username, password):
-        return render_template_string(LOGIN_TEMPLATE, error="Invalid Input!")
+        return render_template("login.html", error="Invalid Input!")
 
     # Security Mechanism 4: Rate Limiting / Brute Force Protection
     if attempts.get(username, 0) >= 5:
-        return render_template_string(LOGIN_TEMPLATE, error="Account Locked! Too many failed attempts.")
+        return render_template("login.html", error="Account Locked! Too many failed attempts.")
 
     # Security Mechanism 5: SQL Injection Prevention
     if authenticate_user(username, password):
@@ -292,7 +294,7 @@ def login_post():
     else:
         error_msg = f"Wrong password! Remaining attempts: {remaining_attempts}"
         
-    return render_template_string(LOGIN_TEMPLATE, error=error_msg)
+    return render_template("login.html", error=error_msg)
 
 @app.route("/2fa", methods=["GET", "POST"])
 def two_factor():
@@ -311,7 +313,7 @@ def two_factor():
         otpauth = f"otpauth://totp/{issuer}:{account}?secret={secret}&issuer={issuer}"
         qr_url = f"https://api.qrserver.com/v1/create-qr-code/?data={urllib.parse.quote(otpauth)}&size=200x200"
         
-        return render_template_string(TWO_FA_TEMPLATE, qr_url=qr_url)
+        return render_template("2fa.html", qr_url=qr_url)
     
     elif request.method == "POST":
         validate_csrf(request.form)
@@ -324,22 +326,22 @@ def two_factor():
             session["user"] = username
             return redirect("/dashboard")
         else:
-            return render_template_string(TWO_FA_TEMPLATE, error="Invalid Authenticator Code!")
+            return render_template("2fa.html", error="Invalid Authenticator Code!")
 
 @app.route("/dashboard", methods=["GET"])
 def dashboard():
     if "user" in session:
         # Security Mechanism 6: Cross-Site Scripting (XSS) Prevention
         safe_username = escape(session['user'])
-        return render_template_string(DASHBOARD_TEMPLATE, safe_username=safe_username)
+        return render_template("dashboard.html", safe_username=safe_username)
     return redirect("/")
 
 @app.route("/logout", methods=["GET"])
 def logout():
     session.clear()
     reason = request.args.get("reason")
-    if reason:
-        return redirect(f"/?reason={reason}")
+    if reason == "timeout":
+        return redirect("/?reason=timeout")
     return redirect("/")
 
 # -------- RUN --------
